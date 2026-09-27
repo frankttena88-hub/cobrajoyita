@@ -150,21 +150,11 @@ a.link{color:var(--wine); font-size:13px; text-decoration:none; cursor:pointer;}
       </div>
       <div class="section-title">Saldo total</div>
       <div class="saldo" id="det-saldo">$0</div>
+      <button class="primary" id="det-btn-abono" onclick="abrirAbonoCliente(clienteActualId)">Registrar abono</button>
     </div>
     <div class="card">
       <h2>Ventas</h2>
       <div id="det-ventas"><div class="empty">Sin ventas</div></div>
-    </div>
-  </div>
-
-  <div id="view-abono" class="view hidden">
-    <a class="link" onclick="volverDesdeAbono()">← Volver</a>
-    <div class="card" style="margin-top:10px;">
-      <h2 id="ab-titulo">Registrar abono</h2>
-      <div class="sub" id="ab-saldo-actual" style="margin-bottom:10px;"></div>
-      <label>Monto del abono</label>
-      <input id="ab-monto" type="number" step="0.01" placeholder="0.00">
-      <button class="primary" onclick="guardarAbono()">Registrar abono</button>
     </div>
   </div>
 
@@ -225,7 +215,6 @@ function guardar(data){
 }
 let DB = cargar();
 let clienteActualId = null;
-let ventaActualId = null;
 
 function money(n){ return '$' + Number(n).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2}); }
 function hoy(){ return new Date().toISOString().slice(0,10); }
@@ -425,7 +414,6 @@ function verCliente(id){
           </div>
           <div style="text-align:right">
             <div class="saldo">${pagada?'Pagada':money(saldo)}</div>
-            ${!pagada?`<a class="link" onclick="irAbono('${v.id}')">Registrar abono</a>`:''}
           </div>
         </div>
         <div class="section-title" style="margin:10px 0 2px;">Historial de abonos</div>
@@ -437,24 +425,43 @@ function verCliente(id){
   document.getElementById('view-detalle').classList.remove('hidden');
 }
 
-function irAbono(ventaId){
-  ventaActualId = ventaId;
-  const v = DB.ventas.find(x=>x.id===ventaId);
-  document.getElementById('ab-titulo').textContent = 'Abono · ' + v.articulo;
-  document.getElementById('ab-saldo-actual').textContent = 'Saldo actual: ' + money(saldoVenta(v));
-  document.getElementById('ab-monto').value = '';
-  document.querySelectorAll('.view').forEach(x=>x.classList.add('hidden'));
-  document.getElementById('view-abono').classList.remove('hidden');
+function abrirAbonoCliente(clienteId){
+  const c = DB.clientes.find(x=>x.id===clienteId);
+  const total = saldoCliente(clienteId);
+  if(total<=0.009){ toast('Este cliente no tiene saldo pendiente'); return; }
+  openModal(`
+    <h2>Registrar abono</h2>
+    <div class="sub" style="margin-bottom:10px;">${c.nombre} · saldo total ${money(total)}</div>
+    <label>Monto del abono</label>
+    <input id="abc-monto" type="number" step="0.01" placeholder="0.00">
+    <div style="display:flex; gap:10px; margin-top:14px;">
+      <button class="primary" onclick="confirmarAbonoCliente('${clienteId}')">Registrar</button>
+      <button class="primary" style="background:var(--ink-soft)" onclick="closeModal()">Cancelar</button>
+    </div>`);
 }
-function volverDesdeAbono(){ verCliente(clienteActualId); }
 
-function guardarAbono(){
-  const monto = parseFloat(document.getElementById('ab-monto').value);
+function confirmarAbonoCliente(clienteId){
+  const monto = parseFloat(document.getElementById('abc-monto').value);
   if(!monto || monto<=0){ toast('Escribe un monto válido'); return; }
-  const v = DB.ventas.find(x=>x.id===ventaActualId);
-  v.abonos.push({monto, fecha: hoy()});
+  const totalSaldo = saldoCliente(clienteId);
+  const excedente = monto - totalSaldo;
+  let restante = Math.min(monto, totalSaldo);
+  const fecha = hoy();
+  DB.ventas
+    .filter(v=>v.clienteId===clienteId && saldoVenta(v)>0.009)
+    .sort((a,b)=>a.fecha.localeCompare(b.fecha))
+    .forEach(v=>{
+      if(restante<=0.009) return;
+      const aplicar = Math.min(saldoVenta(v), restante);
+      v.abonos.push({monto: aplicar, fecha});
+      restante -= aplicar;
+    });
   guardar(DB);
-  verCliente(clienteActualId);
+  closeModal();
+  toast(excedente > 0.009
+    ? `Se aplicaron ${money(totalSaldo)}. El resto (${money(excedente)}) excede el saldo total.`
+    : 'Abono registrado');
+  verCliente(clienteId);
 }
 
 function renderNuevaVenta(){
@@ -486,26 +493,48 @@ function renderCobranza(){
   const activas = DB.ventas.filter(v=>saldoVenta(v)>0.009);
   const cont = document.getElementById('lista-cobranza');
   if(!activas.length){ cont.innerHTML='<div class="empty">Sin ventas activas</div>'; return; }
-  const ordenadas = activas.slice().sort((a,b)=>{
-    const fa = proximaFecha(a), fb = proximaFecha(b);
-    if(!fa && !fb) return 0;
-    if(!fa) return 1;
-    if(!fb) return -1;
-    return fa.localeCompare(fb);
+
+  const porCliente = {};
+  activas.forEach(v=>{
+    (porCliente[v.clienteId] = porCliente[v.clienteId]||[]).push(v);
   });
-  cont.innerHTML = ordenadas.map(v=>{
-    const cliente = DB.clientes.find(c=>c.id===v.clienteId);
-    const atrasada = estaAtrasada(v);
-    const prox = proximaFecha(v);
-    return `<div class="row" style="cursor:pointer" onclick="verCliente('${v.clienteId}')">
-      <div>
+
+  const grupos = Object.keys(porCliente).map(clienteId=>{
+    const ventasCliente = porCliente[clienteId];
+    const total = ventasCliente.reduce((a,v)=>a+saldoVenta(v),0);
+    const anyAtrasada = ventasCliente.some(estaAtrasada);
+    const fechas = ventasCliente.map(proximaFecha).filter(Boolean).sort();
+    return {clienteId, ventasCliente, total, anyAtrasada, proxMin: fechas[0]||null};
+  });
+
+  grupos.sort((a,b)=>{
+    if(!a.proxMin && !b.proxMin) return 0;
+    if(!a.proxMin) return 1;
+    if(!b.proxMin) return -1;
+    return a.proxMin.localeCompare(b.proxMin);
+  });
+
+  cont.innerHTML = grupos.map(g=>{
+    const cliente = DB.clientes.find(c=>c.id===g.clienteId);
+    const badgeClass = g.anyAtrasada ? 'late' : (g.proxMin ? 'ok' : 'neutral');
+    const badgeText = g.anyAtrasada ? 'Atrasado' : (g.proxMin ? 'Al corriente' : 'Indefinido');
+    const desglose = g.ventasCliente.map(v=>{
+      const prox = proximaFecha(v);
+      const at = estaAtrasada(v);
+      return `<div class="row" style="border:none; padding:5px 0;">
+        <div class="sub">${v.articulo} · ${prox ? prox : 'sin fecha fija'}${at?' · atrasada':''}</div>
+        <div class="sub">${money(saldoVenta(v))}</div>
+      </div>`;
+    }).join('');
+    return `<div class="venta-item" style="cursor:pointer" onclick="verCliente('${g.clienteId}')">
+      <div class="row" style="border:none; padding:0;">
         <div class="name">${cliente?cliente.nombre:'—'}</div>
-        <div class="sub">${v.articulo} · ${prox ? 'próximo pago '+prox : 'sin fecha fija'}</div>
+        <div style="text-align:right">
+          <div class="saldo">${money(g.total)}</div>
+          <span class="badge ${badgeClass}">${badgeText}</span>
+        </div>
       </div>
-      <div style="text-align:right">
-        <div class="saldo">${money(saldoVenta(v))}</div>
-        <span class="badge ${atrasada?'late':(prox?'ok':'neutral')}">${atrasada?'Atrasado':(prox?'Al corriente':'Indefinido')}</span>
-      </div>
+      ${desglose}
     </div>`;
   }).join('');
 }
