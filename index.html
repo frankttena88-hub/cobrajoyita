@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cobranza · Joyería</title>
+<style>
+:root{
+  --bg:#faf7f2; --surface:#ffffff; --line:#e7dfd3;
+  --ink:#2b2620; --ink-soft:#6b6154;
+  --wine:#6d1f3a; --wine-dark:#54172d;
+  --gold:#a9803f;
+  --ok:#3f6b4e; --ok-bg:#e9f1ec;
+  --late:#a5362a; --late-bg:#f7e9e6;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  box-sizing:border-box;
+}
+*{box-sizing:border-box;}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:-apple-system,Segoe UI,Roboto,sans-serif;
+  min-height:100%;
+}
+header{
+  position:sticky; top:0; z-index:5;
+  padding:calc(18px + env(safe-area-inset-top,0px)) 20px 14px;
+  background:var(--wine); color:#f6ece9;
+}
+header h1{
+  margin:0; font-family:Georgia,'Times New Roman',serif; font-size:22px;
+  font-weight:600; letter-spacing:.2px;
+}
+header p{margin:4px 0 0; font-size:13px; color:#e3c9c9;}
+nav{
+  display:flex; gap:0; background:var(--wine-dark);
+  overflow-x:auto;
+}
+nav button{
+  flex:1; min-width:80px; padding:12px 8px; border:none; background:none;
+  color:#e3c9c9; font-size:13px; cursor:pointer; border-bottom:3px solid transparent;
+}
+nav button.active{color:#fff; border-bottom-color:var(--gold);}
+main{padding:18px 16px 60px; max-width:640px; margin:0 auto;}
+.card{
+  background:var(--surface); border:1px solid var(--line); border-radius:10px;
+  padding:16px; margin-bottom:14px;
+}
+h2{font-family:Georgia,serif; font-size:17px; margin:0 0 12px;}
+.stats{display:flex; gap:10px; margin-bottom:14px;}
+.stat{flex:1; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:14px 10px; text-align:center;}
+.stat .n{font-family:Georgia,serif; font-size:22px; color:var(--wine);}
+.stat .l{font-size:11px; color:var(--ink-soft); margin-top:2px;}
+label{display:block; font-size:12px; color:var(--ink-soft); margin:10px 0 4px;}
+input,select{
+  width:100%; padding:10px; border:1px solid var(--line); border-radius:8px;
+  font-size:15px; background:#fff; color:var(--ink);
+}
+button.primary{
+  margin-top:14px; width:100%; padding:12px; border:none; border-radius:8px;
+  background:var(--wine); color:#fff; font-size:15px; cursor:pointer;
+}
+button.primary:active{background:var(--wine-dark);}
+.row{display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--line);}
+.row:last-child{border-bottom:none;}
+.row .name{font-weight:600;}
+.row .sub{font-size:12px; color:var(--ink-soft);}
+.badge{font-size:11px; padding:3px 8px; border-radius:999px; white-space:nowrap;}
+.badge.ok{background:var(--ok-bg); color:var(--ok);}
+.badge.late{background:var(--late-bg); color:var(--late);}
+.badge.neutral{background:var(--line); color:var(--ink-soft);}
+.saldo{font-family:Georgia,serif; font-size:15px;}
+.empty{color:var(--ink-soft); font-size:14px; text-align:center; padding:20px 0;}
+a.link{color:var(--wine); font-size:13px; text-decoration:none; cursor:pointer;}
+.section-title{font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); margin:18px 0 8px;}
+.venta-item{padding:10px 0; border-bottom:1px solid var(--line);}
+.venta-item:last-child{border-bottom:none;}
+.hidden{display:none;}
+#modal-overlay{position:fixed; inset:0; background:rgba(20,15,12,.45); z-index:50; padding:20px; display:none; align-items:center; justify-content:center;}
+#modal-overlay.show{display:flex;}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1c1815; --surface:#252019; --line:#3a3229; --ink:#f2ece3; --ink-soft:#a89c8a;
+    --ok-bg:#1e2b22; --late-bg:#2e1c19;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1c1815; --surface:#252019; --line:#3a3229; --ink:#f2ece3; --ink-soft:#a89c8a;
+  --ok-bg:#1e2b22; --late-bg:#2e1c19;
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Cobranza · Joyería</h1>
+  <p id="subheader">Control de ventas a crédito y abonos</p>
+</header>
+<nav>
+  <button class="tab active" data-tab="inicio">Inicio</button>
+  <button class="tab" data-tab="clientes">Clientes</button>
+  <button class="tab" data-tab="nueva">Nueva venta</button>
+  <button class="tab" data-tab="cobranza">Cobranza</button>
+</nav>
+<main>
+
+  <div id="view-inicio" class="view">
+    <div class="stats">
+      <div class="stat"><div class="n" id="st-total">$0</div><div class="l">Por cobrar</div></div>
+      <div class="stat"><div class="n" id="st-clientes">0</div><div class="l">Clientes activos</div></div>
+      <div class="stat"><div class="n" id="st-atrasados">0</div><div class="l">Atrasados</div></div>
+    </div>
+    <div class="card">
+      <h2>Atrasados</h2>
+      <div id="inicio-atrasados"><div class="empty">Sin datos todavía</div></div>
+    </div>
+    <div class="card">
+      <h2>Respaldo</h2>
+      <div class="sub" style="margin-bottom:12px;">Guarda tus datos como archivo, o recupéralos si algo salió mal.</div>
+      <button class="primary" id="btn-exportar" onclick="exportarRespaldo()" disabled>Descargar respaldo</button>
+      <input type="file" id="input-restaurar" accept="application/json" style="display:none" onchange="restaurarRespaldo(event)">
+      <button class="primary" style="background:var(--ink-soft); margin-top:8px;" onclick="document.getElementById('input-restaurar').click()">Restaurar respaldo</button>
+    </div>
+  </div>
+
+  <div id="view-clientes" class="view hidden">
+    <div class="card">
+      <h2>Agregar cliente</h2>
+      <label>Nombre</label>
+      <input id="cli-nombre" placeholder="Nombre completo">
+      <label>Teléfono</label>
+      <input id="cli-tel" placeholder="Opcional">
+      <button class="primary" onclick="agregarCliente()">Guardar cliente</button>
+    </div>
+    <div class="card">
+      <h2>Lista de clientes</h2>
+      <div id="lista-clientes"><div class="empty">No hay clientes registrados</div></div>
+    </div>
+  </div>
+
+  <div id="view-detalle" class="view hidden">
+    <a class="link" onclick="mostrarTab('clientes')">← Volver a clientes</a>
+    <div class="card" style="margin-top:10px;">
+      <h2 id="det-nombre">Cliente</h2>
+      <div id="det-tel" class="sub"></div>
+      <div style="margin-top:6px;">
+        <a class="link" onclick="editarCliente(clienteActualId, event)">Editar</a>
+        &nbsp;·&nbsp;
+        <a class="link" style="color:var(--late)" onclick="eliminarCliente(clienteActualId, event)">Eliminar cliente</a>
+      </div>
+      <div class="section-title">Saldo total</div>
+      <div class="saldo" id="det-saldo">$0</div>
+    </div>
+    <div class="card">
+      <h2>Ventas</h2>
+      <div id="det-ventas"><div class="empty">Sin ventas</div></div>
+    </div>
+  </div>
+
+  <div id="view-abono" class="view hidden">
+    <a class="link" onclick="volverDesdeAbono()">← Volver</a>
+    <div class="card" style="margin-top:10px;">
+      <h2 id="ab-titulo">Registrar abono</h2>
+      <div class="sub" id="ab-saldo-actual" style="margin-bottom:10px;"></div>
+      <label>Monto del abono</label>
+      <input id="ab-monto" type="number" step="0.01" placeholder="0.00">
+      <button class="primary" onclick="guardarAbono()">Registrar abono</button>
+    </div>
+  </div>
+
+  <div id="view-nueva" class="view hidden">
+    <div class="card">
+      <h2>Registrar venta a crédito</h2>
+      <label>Cliente</label>
+      <select id="nv-cliente"></select>
+      <label>Artículo</label>
+      <input id="nv-articulo" placeholder="Ej. Cadena de oro 10k">
+      <label>Precio total</label>
+      <input id="nv-precio" type="number" step="0.01" placeholder="0.00">
+      <label>Enganche (opcional)</label>
+      <input id="nv-enganche" type="number" step="0.01" placeholder="0.00">
+      <label>Frecuencia de pago</label>
+      <select id="nv-frecuencia">
+        <option value="7">Semanal</option>
+        <option value="15">Quincenal</option>
+        <option value="30">Mensual</option>
+        <option value="0">Indefinido (sin fecha fija)</option>
+      </select>
+      <button class="primary" onclick="registrarVenta()">Registrar venta</button>
+    </div>
+  </div>
+
+  <div id="view-cobranza" class="view hidden">
+    <div class="card">
+      <h2>Seguimiento de cobranza</h2>
+      <div id="lista-cobranza"><div class="empty">Sin ventas activas</div></div>
+    </div>
+  </div>
+
+</main>
+
+<div id="modal-overlay">
+  <div class="card" style="max-width:320px;width:100%;" id="modal-content"></div>
+</div>
+<div id="toast" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--wine-dark);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;z-index:60;opacity:0;transition:opacity .2s;pointer-events:none;"></div>
+
+<script>
+function openModal(html){ document.getElementById('modal-content').innerHTML = html; document.getElementById('modal-overlay').classList.add('show'); }
+function closeModal(){ document.getElementById('modal-overlay').classList.remove('show'); }
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.opacity = '1';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>{ t.style.opacity='0'; }, 2200);
+}
+
+const KEY = 'cobranza_joyeria_v1';
+function cargar(){
+  try{ return JSON.parse(localStorage.getItem(KEY)) || {clientes:[], ventas:[]}; }
+  catch(e){ return {clientes:[], ventas:[]}; }
+}
+function guardar(data){
+  try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch(e){ toast('No se pudo guardar. Espacio lleno o bloqueado.'); }
+}
+let DB = cargar();
+let clienteActualId = null;
+let ventaActualId = null;
+
+function money(n){ return '$' + Number(n).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function hoy(){ return new Date().toISOString().slice(0,10); }
+function sumaAbonos(venta){ return venta.abonos.reduce((a,b)=>a+b.monto,0); }
+function saldoVenta(venta){ return venta.precio - sumaAbonos(venta); }
+function saldoCliente(idCliente){
+  return DB.ventas.filter(v=>v.clienteId===idCliente && saldoVenta(v)>0.009)
+    .reduce((a,v)=>a+saldoVenta(v),0);
+}
+function proximaFecha(venta){
+  if(!venta.frecuencia) return null;
+  const ultima = venta.abonos.length ? venta.abonos[venta.abonos.length-1].fecha : venta.fecha;
+  const d = new Date(ultima+'T00:00:00');
+  d.setDate(d.getDate()+venta.frecuencia);
+  return d.toISOString().slice(0,10);
+}
+function estaAtrasada(venta){
+  if(saldoVenta(venta)<=0.009) return false;
+  const prox = proximaFecha(venta);
+  if(!prox) return false;
+  return prox < hoy();
+}
+
+function mostrarTab(tab){
+  document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));
+  document.querySelectorAll('nav .tab').forEach(b=>b.classList.remove('active'));
+  const view = document.getElementById('view-'+tab);
+  if(view) view.classList.remove('hidden');
+  const btn = document.querySelector('nav .tab[data-tab="'+tab+'"]');
+  if(btn) btn.classList.add('active');
+  if(tab==='inicio') renderInicio();
+  if(tab==='clientes') renderClientes();
+  if(tab==='nueva') renderNuevaVenta();
+  if(tab==='cobranza') renderCobranza();
+}
+document.querySelectorAll('nav .tab').forEach(b=>{
+  b.addEventListener('click', ()=>mostrarTab(b.dataset.tab));
+});
+
+let downloadsApi = null;
+(async function(){
+  try{
+    if(window.claude && window.claude.use){
+      downloadsApi = await window.claude.use('downloads');
+    }
+  }catch(e){}
+  const btn = document.getElementById('btn-exportar');
+  if(btn) btn.disabled = !downloadsApi;
+})();
+
+async function exportarRespaldo(){
+  if(!downloadsApi){ toast('La descarga no está disponible en esta vista'); return; }
+  const fecha = hoy();
+  try{
+    await downloadsApi.save({ filename: `respaldo-cobranza-${fecha}.json`, data: JSON.stringify(DB, null, 2) });
+    toast('Respaldo descargado');
+  }catch(e){ toast('No se pudo descargar el respaldo'); }
+}
+
+function restaurarRespaldo(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    let datos;
+    try{ datos = JSON.parse(e.target.result); }
+    catch(err){ toast('El archivo no es un respaldo válido'); return; }
+    if(!datos || !Array.isArray(datos.clientes) || !Array.isArray(datos.ventas)){
+      toast('El archivo no tiene el formato esperado'); return;
+    }
+    openModal(`
+      <h2>Restaurar respaldo</h2>
+      <p style="font-size:14px; color:var(--ink-soft);">Esto va a reemplazar los datos actuales (${DB.clientes.length} cliente(s)) por los del archivo (${datos.clientes.length} cliente(s)). ¿Continuar?</p>
+      <div style="display:flex; gap:10px; margin-top:14px;">
+        <button class="primary" onclick="confirmarRestaurar()">Restaurar</button>
+        <button class="primary" style="background:var(--ink-soft)" onclick="closeModal()">Cancelar</button>
+      </div>`);
+    window._datosRestaurar = datos;
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function confirmarRestaurar(){
+  DB = window._datosRestaurar;
+  guardar(DB);
+  closeModal();
+  toast('Datos restaurados');
+  mostrarTab('inicio');
+}
+
+function editarCliente(id, event){
+  if(event) event.stopPropagation();
+  const c = DB.clientes.find(x=>x.id===id);
+  openModal(`
+    <h2>Editar cliente</h2>
+    <label>Nombre</label>
+    <input id="edit-nombre" value="${c.nombre.replace(/"/g,'&quot;')}">
+    <label>Teléfono</label>
+    <input id="edit-tel" value="${(c.tel||'').replace(/"/g,'&quot;')}">
+    <div style="display:flex; gap:10px; margin-top:14px;">
+      <button class="primary" onclick="guardarEdicionCliente('${id}')">Guardar</button>
+      <button class="primary" style="background:var(--ink-soft)" onclick="closeModal()">Cancelar</button>
+    </div>`);
+}
+
+function guardarEdicionCliente(id){
+  const nombre = document.getElementById('edit-nombre').value.trim();
+  const tel = document.getElementById('edit-tel').value.trim();
+  if(!nombre){ toast('El nombre no puede quedar vacío'); return; }
+  const c = DB.clientes.find(x=>x.id===id);
+  c.nombre = nombre;
+  c.tel = tel;
+  guardar(DB);
+  closeModal();
+  toast('Cliente actualizado');
+  if(clienteActualId===id) verCliente(id); else renderClientes();
+}
+
+function eliminarCliente(id, event){
+  if(event) event.stopPropagation();
+  const c = DB.clientes.find(x=>x.id===id);
+  const ventasCliente = DB.ventas.filter(v=>v.clienteId===id);
+  const msg = ventasCliente.length
+    ? `${c.nombre} tiene ${ventasCliente.length} venta(s) registrada(s). Si lo eliminas, también se borra ese historial.`
+    : `¿Eliminar a ${c.nombre}? Esta acción no se puede deshacer.`;
+  openModal(`
+    <h2>Eliminar cliente</h2>
+    <p style="font-size:14px; color:var(--ink-soft);">${msg}</p>
+    <div style="display:flex; gap:10px; margin-top:14px;">
+      <button class="primary" style="background:var(--late)" onclick="confirmarEliminarCliente('${id}')">Eliminar</button>
+      <button class="primary" style="background:var(--ink-soft)" onclick="closeModal()">Cancelar</button>
+    </div>`);
+}
+
+function confirmarEliminarCliente(id){
+  DB.clientes = DB.clientes.filter(x=>x.id!==id);
+  DB.ventas = DB.ventas.filter(v=>v.clienteId!==id);
+  guardar(DB);
+  closeModal();
+  toast('Cliente eliminado');
+  if(clienteActualId===id){ clienteActualId=null; mostrarTab('clientes'); }
+  else renderClientes();
+}
+
+function agregarCliente(){
+  const nombre = document.getElementById('cli-nombre').value.trim();
+  const tel = document.getElementById('cli-tel').value.trim();
+  if(!nombre){ toast('Escribe el nombre del cliente'); return; }
+  DB.clientes.push({id: Date.now().toString(), nombre, tel});
+  guardar(DB);
+  document.getElementById('cli-nombre').value='';
+  document.getElementById('cli-tel').value='';
+  renderClientes();
+}
+
+function renderClientes(){
+  const cont = document.getElementById('lista-clientes');
+  if(!DB.clientes.length){ cont.innerHTML='<div class="empty">No hay clientes registrados</div>'; return; }
+  cont.innerHTML = DB.clientes.map(c=>{
+    const saldo = saldoCliente(c.id);
+    return `<div class="row" style="cursor:pointer" onclick="verCliente('${c.id}')">
+      <div><div class="name">${c.nombre}</div><div class="sub">${c.tel||''}</div></div>
+      <div style="text-align:right">
+        <div class="saldo">${money(saldo)}</div>
+        <a class="link" onclick="editarCliente('${c.id}', event)">Editar</a>
+        &nbsp;·&nbsp;
+        <a class="link" style="color:var(--late)" onclick="eliminarCliente('${c.id}', event)">Eliminar</a>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function verCliente(id){
+  clienteActualId = id;
+  const c = DB.clientes.find(x=>x.id===id);
+  document.getElementById('det-nombre').textContent = c.nombre;
+  document.getElementById('det-tel').textContent = c.tel || '';
+  document.getElementById('det-saldo').textContent = money(saldoCliente(id));
+  const ventas = DB.ventas.filter(v=>v.clienteId===id);
+  const cont = document.getElementById('det-ventas');
+  if(!ventas.length){ cont.innerHTML='<div class="empty">Sin ventas</div>'; }
+  else{
+    cont.innerHTML = ventas.map(v=>{
+      const saldo = saldoVenta(v);
+      const pagada = saldo<=0.009;
+      const historial = v.abonos.length
+        ? v.abonos.map(a=>`<div class="row" style="border:none; padding:4px 0; font-size:13px;">
+              <div class="sub">${a.fecha}</div><div>${money(a.monto)}</div>
+            </div>`).join('')
+        : '<div class="sub" style="padding:4px 0;">Sin abonos todavía</div>';
+      return `<div class="venta-item">
+        <div class="row" style="border:none; padding:0;">
+          <div>
+            <div class="name">${v.articulo}</div>
+            <div class="sub">Precio ${money(v.precio)} · ${v.fecha}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="saldo">${pagada?'Pagada':money(saldo)}</div>
+            ${!pagada?`<a class="link" onclick="irAbono('${v.id}')">Registrar abono</a>`:''}
+          </div>
+        </div>
+        <div class="section-title" style="margin:10px 0 2px;">Historial de abonos</div>
+        ${historial}
+      </div>`;
+    }).join('');
+  }
+  document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));
+  document.getElementById('view-detalle').classList.remove('hidden');
+}
+
+function irAbono(ventaId){
+  ventaActualId = ventaId;
+  const v = DB.ventas.find(x=>x.id===ventaId);
+  document.getElementById('ab-titulo').textContent = 'Abono · ' + v.articulo;
+  document.getElementById('ab-saldo-actual').textContent = 'Saldo actual: ' + money(saldoVenta(v));
+  document.getElementById('ab-monto').value = '';
+  document.querySelectorAll('.view').forEach(x=>x.classList.add('hidden'));
+  document.getElementById('view-abono').classList.remove('hidden');
+}
+function volverDesdeAbono(){ verCliente(clienteActualId); }
+
+function guardarAbono(){
+  const monto = parseFloat(document.getElementById('ab-monto').value);
+  if(!monto || monto<=0){ toast('Escribe un monto válido'); return; }
+  const v = DB.ventas.find(x=>x.id===ventaActualId);
+  v.abonos.push({monto, fecha: hoy()});
+  guardar(DB);
+  verCliente(clienteActualId);
+}
+
+function renderNuevaVenta(){
+  const sel = document.getElementById('nv-cliente');
+  sel.innerHTML = DB.clientes.length
+    ? DB.clientes.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')
+    : '<option value="">— primero agrega un cliente —</option>';
+  document.getElementById('nv-articulo').value='';
+  document.getElementById('nv-precio').value='';
+  document.getElementById('nv-enganche').value='';
+}
+
+function registrarVenta(){
+  const clienteId = document.getElementById('nv-cliente').value;
+  const articulo = document.getElementById('nv-articulo').value.trim();
+  const precio = parseFloat(document.getElementById('nv-precio').value);
+  const enganche = parseFloat(document.getElementById('nv-enganche').value) || 0;
+  const frecuencia = parseInt(document.getElementById('nv-frecuencia').value);
+  if(!clienteId){ toast('Selecciona o agrega un cliente primero'); return; }
+  if(!articulo || !precio || precio<=0){ toast('Completa artículo y precio'); return; }
+  const venta = {id: Date.now().toString(), clienteId, articulo, precio, frecuencia, fecha: hoy(), abonos:[]};
+  if(enganche>0) venta.abonos.push({monto: enganche, fecha: hoy()});
+  DB.ventas.push(venta);
+  guardar(DB);
+  mostrarTab('clientes');
+}
+
+function renderCobranza(){
+  const activas = DB.ventas.filter(v=>saldoVenta(v)>0.009);
+  const cont = document.getElementById('lista-cobranza');
+  if(!activas.length){ cont.innerHTML='<div class="empty">Sin ventas activas</div>'; return; }
+  const ordenadas = activas.slice().sort((a,b)=>{
+    const fa = proximaFecha(a), fb = proximaFecha(b);
+    if(!fa && !fb) return 0;
+    if(!fa) return 1;
+    if(!fb) return -1;
+    return fa.localeCompare(fb);
+  });
+  cont.innerHTML = ordenadas.map(v=>{
+    const cliente = DB.clientes.find(c=>c.id===v.clienteId);
+    const atrasada = estaAtrasada(v);
+    const prox = proximaFecha(v);
+    return `<div class="row" style="cursor:pointer" onclick="verCliente('${v.clienteId}')">
+      <div>
+        <div class="name">${cliente?cliente.nombre:'—'}</div>
+        <div class="sub">${v.articulo} · ${prox ? 'próximo pago '+prox : 'sin fecha fija'}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="saldo">${money(saldoVenta(v))}</div>
+        <span class="badge ${atrasada?'late':(prox?'ok':'neutral')}">${atrasada?'Atrasado':(prox?'Al corriente':'Indefinido')}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderInicio(){
+  const activas = DB.ventas.filter(v=>saldoVenta(v)>0.009);
+  const total = activas.reduce((a,v)=>a+saldoVenta(v),0);
+  const clientesConSaldo = new Set(activas.map(v=>v.clienteId));
+  const atrasadas = activas.filter(estaAtrasada);
+  document.getElementById('st-total').textContent = money(total);
+  document.getElementById('st-clientes').textContent = clientesConSaldo.size;
+  document.getElementById('st-atrasados').textContent = atrasadas.length;
+  const cont = document.getElementById('inicio-atrasados');
+  if(!atrasadas.length){ cont.innerHTML='<div class="empty">Nadie atrasado por ahora</div>'; return; }
+  cont.innerHTML = atrasadas.map(v=>{
+    const cliente = DB.clientes.find(c=>c.id===v.clienteId);
+    return `<div class="row" style="cursor:pointer" onclick="verCliente('${v.clienteId}')">
+      <div><div class="name">${cliente?cliente.nombre:'—'}</div><div class="sub">${v.articulo}</div></div>
+      <div class="saldo">${money(saldoVenta(v))}</div>
+    </div>`;
+  }).join('');
+}
+
+renderInicio();
+</script>
+</body>
+</html>
